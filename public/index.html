@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 IoT Control Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-connected {
+            background-color: #28a745;
+            box-shadow: 0 0 10px #28a745;
+        }
+        .status-disconnected {
+            background-color: #dc3545;
+        }
+        .led-button {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        .led-on {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: none;
+            color: white;
+        }
+        .led-off {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            color: white;
+        }
+        .command-log {
+            background-color: #1e1e1e;
+            color: #00ff00;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        .log-timestamp {
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <div class="text-center text-white mb-4">
+            <h1 class="display-4 fw-bold">
+                <i class="bi bi-cpu"></i> ESP32 IoT Control Dashboard
+            </h1>
+            <p class="lead">Real-time device control and monitoring</p>
+        </div>
+
+        <!-- Status Card -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-info-circle"></i> Server Status
+                        </h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="status-indicator" id="serverStatus"></span>
+                                <span id="statusText">Checking connection...</span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshDevices()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="mt-3" id="devicesContainer">
+                            <small class="text-muted">Connected Devices: <span id="deviceCount">0</span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Cards -->
+        <div class="row mb-4">
+            <!-- LED Control -->
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-lightbulb"></i> LED Control
+                        </h5>
+                        <p class="text-muted">Control the LED on your ESP32 device</p>
+                        <div class="mb-3">
+                            <label for="deviceSelect" class="form-label">Select Device</label>
+                            <select class="form-select" id="deviceSelect">
+                                <option value="default">Default Device</option>
+                            </select>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button class="btn led-on" onclick="controlLED('on')">
+                                <i class="bi bi-lightbulb-fill"></i> Turn ON
+                            </button>
+                            <button class="btn led-off" onclick="controlLED('off')">
+                                <i class="bi bi-lightbulb"></i> Turn OFF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Command -->
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-terminal"></i> Custom Command
+                        </h5>
+                        <p class="text-muted">Send custom commands to ESP32</p>
+                        <div class="mb-3">
+                            <label for="commandInput" class="form-label">Command</label>
+                            <input type="text" class="form-control" id="commandInput" 
+                                   placeholder="e.g., sensor:read or motor:start">
+                        </div>
+                        <div class="d-grid">
+                            <button class="btn btn-primary" onclick="sendCustomCommand()">
+                                <i class="bi bi-send"></i> Send Command
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-list-ul"></i> Activity Log
+                        </h5>
+                        <div class="command-log" id="activityLog">
+                            <div class="log-entry">
+                                <span class="log-timestamp">[System]</span> Dashboard initialized
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="clearLog()">
+                            <i class="bi bi-trash"></i> Clear Log
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+
+        // Add log entry
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('activityLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            let icon = '📝';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '❌';
+            if (type === 'command') icon = '📤';
+            
+            entry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> ${icon} ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Clear log
+        function clearLog() {
+            const log = document.getElementById('activityLog');
+            log.innerHTML = '<div class="log-entry"><span class="log-timestamp">[System]</span> Log cleared</div>';
+        }
+
+        // Refresh devices
+        async function refreshDevices() {
+            try {
+                const response = await fetch(`${API_BASE}/api/devices`);
+                const data = await response.json();
+                
+                const deviceSelect = document.getElementById('deviceSelect');
+                const currentValue = deviceSelect.value;
+                
+                // Update device list
+                deviceSelect.innerHTML = '';
+                if (data.devices && data.devices.length > 0) {
+                    data.devices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.id;
+                        option.textContent = `${device.id} (Connected)`;
+                        deviceSelect.appendChild(option);
+                    });
+                    deviceSelect.value = currentValue;
+                    
+                    document.getElementById('deviceCount').textContent = data.devices.length;
+                    document.getElementById('serverStatus').className = 'status-indicator status-connected';
+                    document.getElementById('statusText').textContent = 'Server Online';
+                    addLog(`Found ${data.devices.length} connected device(s)`, 'success');
+                } else {
+                    deviceSelect.innerHTML = '<option value="default">No devices connected</option>';
+                    document.getElementById('deviceCount').textContent = '0';
+                    document.getElementById('serverStatus').className = 'status-indicator status-disconnected';
+                    document.getElementById('statusText').textContent = 'No devices connected';
+                    addLog('No devices currently connected', 'info');
+                }
+            } catch (error) {
+                console.error('Error fetching devices:', error);
+                document.getElementById('serverStatus').className = 'status-indicator status-disconnected';
+                document.getElementById('statusText').textContent = 'Connection Error';
+                addLog('Failed to connect to server', 'error');
+            }
+        }
+
+        // Control LED
+        async function controlLED(state) {
+            const device = document.getElementById('deviceSelect').value;
+            addLog(`Sending LED ${state.toUpperCase()} command to ${device}...`, 'command');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/led?state=${state}&device=${device}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    addLog(`LED turned ${state.toUpperCase()} successfully`, 'success');
+                } else {
+                    addLog(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error controlling LED:', error);
+                addLog('Failed to send LED command', 'error');
+            }
+        }
+
+        // Send custom command
+        async function sendCustomCommand() {
+            const command = document.getElementById('commandInput').value.trim();
+            const device = document.getElementById('deviceSelect').value;
+            
+            if (!command) {
+                addLog('Please enter a command', 'error');
+                return;
+            }
+            
+            addLog(`Sending custom command: "${command}" to ${device}...`, 'command');
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/command`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ command, device })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    addLog(`Command sent successfully`, 'success');
+                    document.getElementById('commandInput').value = '';
+                } else {
+                    addLog(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error sending command:', error);
+                addLog('Failed to send command', 'error');
+            }
+        }
+
+        // Allow Enter key to send command
+        document.getElementById('commandInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendCustomCommand();
+            }
+        });
+
+        // Initialize dashboard
+        refreshDevices();
+        
+        // Auto-refresh devices every 5 seconds
+        setInterval(refreshDevices, 5000);
+    </script>
+</body>
+</html>
+

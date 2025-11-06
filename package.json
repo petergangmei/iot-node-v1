@@ -1,0 +1,26 @@
+{
+  "name": "esp32-iot-server",
+  "version": "1.0.0",
+  "description": "Node.js server for controlling ESP32 devices via WebSocket and REST API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "esp32",
+    "iot",
+    "websocket",
+    "rest-api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
+
